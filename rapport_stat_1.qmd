@@ -1,0 +1,399 @@
+---
+title: ""
+subtitle: "Rapport Statistique - V 1.0"
+lang: fr
+language:
+  title-block-author-single: "Auteur"
+author:
+  - name: "D<up>r</up> Philippe MICHEL"
+    affiliations:
+      name: "USRC - Hôpital NOVO"
+      department: "Unité de Soutien à la Recherche Clinique"
+format:
+ titlepage-pdf:
+  titlepage: bg-image
+  titlepage-bg-image: "novo_usrc.png"
+  logo-space-after: "0\\baselineskip"
+  documentclass: scrreprt
+  number-sections: true
+  titlepage-footer:  "\\today"
+titlepage-theme:
+  title-fontstyle: ["Huge", "bfseries"]
+  title-color: novo
+  subtitle-color: novo
+  subtitle-fontstyle: ["huge"]
+  logo-size: "0.2\\textheight"
+  vrule-width: "0.1cm"
+  vrule-color: novo
+include-in-header:
+   text: |
+    \definecolor{novo}{HTML}{27484b}
+    \usepackage[locale = FR]{siunitx}
+    \usepackage{arsenal}
+    \usepackage[section]{placeins}
+df-print : kable
+jss-pdf:
+  keep-tex: true
+pdf-engine: lualatex
+keep-tex: true
+number-sections: true
+toc: true
+lof: true
+lot: true
+fig-cap-location: bottom
+tbl-cap-location: top
+classoption: [french]
+papersize: a4
+editor: source
+bibliography: stat.bib
+cite-method: biblatex
+csl: jama.csl
+license: "MIT"
+echo: false
+warning: false
+message: false
+cache: false
+---
+
+\newpage
+
+**Responsable scientifique** : M\up{me}  Fanny \textsc{Tortelier}  
+
+**Investigateur coordonnateur** : D\up{r} Amélie \textsc{Toussain} -- SAR Hôpital \textsc{novo} (Site Pontoise)
+
+**Chef de projet** : M\up{me} Véronique \textsc{Da Costa}
+
+Évaluer l’intérêt d’une procédure de service de gestion des NACO dans la prise en charge des fractures de l’extrémité supérieure du fémur   
+
+Ètude monocentrique rétrospective et prospective
+
+\newpage
+
+# Contrôles qualité
+
+```{r}
+#| label: setup
+
+rm(list = ls())
+#
+library(baseph)
+library(janitor)
+library(tidyverse)
+library(gtsummary)
+library(kableExtra)
+library(lubridate)
+library(kableExtra)
+library(forestmodel)
+library(labelled)
+library(epiDisplay)
+library(visdat)
+library(GGally)
+library(colorspace)
+library(xlsx)
+library(apyramid)
+#
+theme_gtsummary_language(language = "fr", decimal.mark = ",")
+options(OutDec = ",")
+#
+load("datas/stopnaco.RData")
+expx <- FALSE
+classeur <- "stopnaco1.xls"
+if (expx){system(paste0("rm -f ",classeur))}
+```
+
+L'échantillon comporte `r nrow(tt)` observations pour `r ncol(tt)-1` variables.
+
+```{r}
+#| label: macro_diag
+
+diagci <- function(pp,nn){
+vpp <- qnorm(0.975) * sqrt(pp*(1-pp)/nn)
+#if (vpp == 0){vpp = NA}
+pp0 <- round(100*pp,0)
+vpp1 <- round(100*(pp - vpp),0)
+if(vpp1 <= 0){vpp1 = NA}
+vpp2 <- round(100*(pp + vpp),0)
+if(vpp2 >= 100){vpp2 = NA}
+ppt <- paste0(pp0, " (", vpp1, ";", vpp2, ")")
+return(ppt)
+}
+
+
+diagph <- function(test, gold){
+zz <- table(test, gold)
+#
+ssb <- zz[1,1]/(zz[1,1] + zz[2,1])
+ssbt <- diagci(ssb, zz[1,1] + zz[2,1])
+#
+ssp <- zz[2,2]/(zz[2,2] + zz[1,2])
+sspt <- diagci(ssp, zz[2,2] + zz[1,2])
+#
+vvp <- zz[1,1]/(zz[1,1] + zz[1,2])
+vvpt <- diagci(vvp, zz[1,1] + zz[1,2])
+#
+vvn <- zz[2,2]/(zz[2,1] + zz[2,2])
+vvnt <- diagci(vvn, zz[2,1] + zz[2,2])
+#
+# return(list(ssb = ssbt, ssp = sspt, vvpt = vvpt, vvn = vvnt))
+return(c(ssb = ssbt, ssp = sspt, vvpt = vvpt, vvn = vvnt))
+}
+```
+
+```{r}
+#| label: macro_date
+
+difdate <- function(dd1,hh1,dd2,hh2){
+  zz1 <- as.numeric(dmy_hms(paste0(dd1," ",hh1)))
+  zz2 <- as.numeric(dmy_hms(paste0(dd2," ",hh2)))
+  dif <- (zz2 - zz1)/60
+  return(dif)
+}
+```
+
+```{r}
+#| label: macro_kbl
+
+tbtib <- function(df,foot,nom,ex){
+    if (ex) {
+      write.xlsx(df,classeur, sheetName = nom, append = TRUE)
+  }
+  
+zz <- df |>
+  kbl(longtable = FALSE, booktabs = TRUE) |>
+  kable_styling(bootstrap_options = c("striped", "hover")) |>
+  column_spec(1, bold = TRUE) |>
+  footnote(general = foot)
+return(zz)
+}
+```
+
+```{r}
+#| label: macro_mediane
+
+medph <- function(df,varx){
+  zz <- df |>
+    dplyr::select({{varx}}) |>
+    na.omit() |>
+    summarise(median = round(median({{varx}}, na.rm = TRUE),1),
+              q1 = round(quantile({{varx}}, 0.25, na.rm = TRUE),1),
+              q3 = round(quantile({{varx}}, 0.75, na.rm = TRUE),1))
+  zz <- paste0 (zz$median, " (", zz$q1, ";", zz$q3, ")")
+  return(zz)
+}
+```
+
+
+# Description de la population
+
+
+
+## Démographie
+
+```{r}
+#| label: tbl-demog
+#| tbl-cap: Données démographiques
+
+tt |>
+dplyr::select(2,3,11:20,62:65) |>
+tbl_summary(missing = "no", 
+  #         type = list(pc_cm ~ "continuous", 
+  #                      naisstermsa ~ "continuous"),
+            statistic = list(all_categorical() ~ "{n}/{N} ({p})")) |>
+modify_header(label ~ " ") |>
+bold_labels() |>
+pexptabph(nomfich = classeur,
+nomsheet = "demog1",
+exp = expx) 
+```
+
+```{r}
+#| label: fig-ages
+#| fig-cap: Pyramide des âges
+
+tt |>
+    mutate(agerec = cut(age,
+    breaks = seq(70,100,5),
+    labels = c("71-75", "76-80", "81-85", "86-90", "91-95", "96-100")
+))|>
+mutate(agerec = as.factor(agerec)) |>
+# Tracé du graphique
+age_pyramid(age_group = "agerec",
+            split_by = "sexe",
+            pal = c("pink", "lightblue"),
+show_midpoint = FALSE) +
+theme_light() +
+    scale_y_continuous(limits = c(-20,20)) +
+    labs(title = "Pyramide des âges",
+        fill = "Sexe")+ 
+    theme(
+      plot.title = element_text(size = 16, face = "bold"),
+      plot.subtitle = element_text(size = 12),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      legend.title = element_blank(),
+      legend.position = "bottom")
+```
+
+
+# Critère principal
+
+*Délai de prise en charge entre l’admission à l’hôpital et la chirurgie (en heures).*
+
+
+
+La médiane du délai *entrée à l'hôpital - chirurgie* est de `r medph(tt, delai_chirurgical)` heures (tous patients)
+
+
+La limite avant/après pour le nouveau protocole a été fixée à septembre 2021. 
+
+```{r}
+#| label: tbl-critp1
+#| tbl-cap: Délai chirurgical avant et après septembre 2021
+
+tt |>
+  dplyr::select(groupe, delai_chirurgical) |>
+  tbl_summary(missing = "no", 
+              by = groupe) |> 
+  modify_header(label ~ " ") |>
+  bold_labels() |>
+  add_p(test = everything() ~ "t.test") |>
+  pexptabph(nomfich = classeur,
+            nomsheet = "delai_chir",
+            exp = expx) 
+
+```
+
+```{r}
+#| label: fig-critp1
+#| fig-cap: Délai chirurgical avant et après septembre 2021
+
+tt |>
+  ggplot() +
+  aes(y = delai_chirurgical, x = groupe, fill = groupe) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "grey90") +
+  labs(title = "Délai chirurgical avant et après septembre 2021",
+       y = "Délai chirurgical (heures)",
+       y = "n") +
+  theme_light() +
+  scale_fill_discrete_qualitative(palette = "Dark 3") +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text(size = 12),
+    legend.title = element_blank(),
+    legend.position = "none")
+```
+
+On trouve une différence significative entre les deux groupes mais surtout dans le groupe `Après` on atteint la limite de 48 heures.
+
+## Dosage & délai
+
+On compare le délai chirurgical pour les patients opérés avec un dernier dosage de l'activité anti-Xa < 0.1 UI/mL et ceux avec un dernier dosage 0.05 UI/mL pour les premiers & derniers dosages.
+
+
+```{r}
+#| label: tbl-dosagedelai
+#| tbl-cap: Niveau du dosage requis et délai chirurgical
+
+tt |> 
+  drop_na(delai_chirurgical, dernier_cut) |>
+  tbl_continuous(delai_chirurgical, c(premier_cut, dernier_cut)) |> 
+  modify_header(label ~ " ") |> 
+  add_p(test = everything() ~ "t.test") |> 
+  bold_labels() |>
+    pexptabph(nomfich = classeur,
+            nomsheet = "delai_dosage",
+            exp = expx) 
+```
+
+Il n'y a pas de différence significative entre les deux groupes (limite pour le premier dosage)
+
+## Facteurs influant sur le délai chirurgical
+
+On regarde les facteurs pouvant influer sur le délai chirurgicale en analyse simple puis en analyse multivariée (régression linéaire).
+
+```{r}
+#| label: tbl-factmono
+#| tbl-cap: facteurs influant sur le délai chirurgical
+
+tt |> 
+  dplyr::select(age_cut,3,9:11:14,17:20,62:65,delai_chirurgical) |>
+    tbl_continuous(delai_chirurgical 
+            ) |> 
+  modify_header(label ~ " ") |>
+  bold_labels() |>
+  add_p(test = everything() ~ "aov") |>
+  gexptabph(nomfich = classeur,
+            nomsheet = "factmono",
+            lg = TRUE,
+            exp = expx)
+
+```
+
+```{r}
+#| label: tbl-factmulti
+#| tbl-cap: facteurs influant sur le délai chirurgical
+ lm(formula = delai_chirurgical ~ premier_cut + dernier_cut +
+      sexe + type_fracture + adl_avant_fracture + marche_avant_la_chute_avec_aide +
+      tvp_ep, data = tt) |> 
+  tbl_regression() |> 
+  modify_header(label ~ " ") |>
+  bold_labels() |>
+  bold_p() |>
+  pexptabph(nomfich = classeur,
+            nomsheet = "factmulti",
+            exp = expx)
+
+```
+
+Le premier dosage (limite) & le score ADL semblent influer sur le délai chirurgical.
+
+
+# Critères secondaires
+
+## Critère 1
+### Pertes sanguines estimées en per opératoire
+### Transfusion
+o Nombre de CGR transfusés (total, pré, per et post opératoire)
+o Nombre de PFC transfusés (per–opératoire)
+o Nombre de CUP transfusés (per–opératoire)
+o Nombre de PPSB administrés (per–opératoire).
+
+### Morbidité hospitalière
+o Complications infectieux (infecti,on du site opératoire
+infections nosocomiales : urinaires, pneumopathies, autres).
+o Complications thromboemboliques (embolie pulmonaire,
+thrombose veineuse profonde)
+o Complications cardio-vasculaires
+o Complications hémorragiques post-opératoires (hématome
+du site opératoire nécessitant une prise en charge)
+o Réadmission à 30 jours
+
+### Mortalité hospitalière
+
+## Critère 2
+*3) Morbidité hospitalière
+o Complications infectieux (infection du site opératoire,
+infections nosocomiales : urinaires, pneumopathies, autres).
+o Complications thromboemboliques (embolie pulmonaire,
+thrombose veineuse profonde)
+o Complications
+ cardio-vasculaires
+ (décompensation
+d’insuffisance cardiaque, OAP, SCA)
+o Complications hémorragiques post-opératoires (hématome
+du site opératoire nécessitant une prise en charge)
+o Réadmission à 30 jours
+4) Mortalité hospitalière
+
+## Critère 2
+* *Facteurs impactant la prise en charge*
+
+Complications du décubitus dorsal (Les escarres ...)
+
+ Degré de dépendance selon l’échelle de KATZ
+Complications liés au terrain (confusion, contention physique, sonde à demeure, passage en réanimation, reprise
+de la marche /fauteuil, délai de retour à domicile, SSR, évaluation gériatrique, prise en charge nutritionnelle)
+Jour d’admission sur la prise en charge (week-end/jour férié/garde)
