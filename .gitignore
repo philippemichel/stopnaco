@@ -18,3 +18,9 @@ datas/
 *.xlsx
 QTDublinIrish.otf
 _extension*
+.Rproj.user
+#rapport_stat_1.qmd#
+.Rprofile
+*.xls
+*.zip
+*renv*

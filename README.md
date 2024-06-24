@@ -12,4 +12,6 @@
 
 *Étude monocentrique rétrospective et prospective*
 
-**10/06/2024** : Plan d'analyse. premier jet du critère principal.
+**10/06/2024** : Plan d'analyse. 
+
+**24/06/2024** : Analyse des données V1

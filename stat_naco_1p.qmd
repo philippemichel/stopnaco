@@ -1,0 +1,531 @@
+---
+title: "STOP-NACO"
+subtitle: "Rapport Statistique - V 1.0"
+author: "D\\textsuperscript{r} Philippe \\textsc{Michel} -- USCR, Hôpital NOVO"
+lang: fr
+format:
+ titlepage-pdf:
+  titlepage: bg-image
+  titlepage-bg-image: "novo_usrc.png"
+  logo-space-after: "0\\baselineskip"
+  documentclass: scrreprt
+  number-sections: true
+  titlepage-footer:  "Fanny \\textsc{Tortelier}  \\newline D\\textsuperscript{r} Amélie  \\textsc{Toussaint} -- Service d’Anesthésie-Réanimation, Hôpital \\textsc{novo} (Site Pontoise)\\newline \\newline Chef de projet : M\\textsuperscript{me} Véronique \\textsc{Da Costa}\\newline \\newline Évaluer l’intérêt d’une procédure de service de gestion des NACO dans la prise en charge des fractures de l’extrémité supérieure du fémur. \\newline \\newline \\today"
+titlepage-theme:
+  title-fontstyle: ["Huge", "bfseries"]
+  title-color: novo
+  subtitle-color: novo
+  subtitle-fontstyle: ["huge"]
+  logo-size: "0.2\\textheight"
+  vrule-width: "0.1cm"
+  vrule-color: novo
+include-in-header:
+   text: |
+    \definecolor{novo}{HTML}{27484b}
+    \usepackage[locale = FR, per-mode = symbol]{siunitx}
+    \usepackage[section]{placeins}
+    \usepackage{arsenal}
+df-print : kable
+jss-pdf:
+  keep-tex: true
+pdf-engine: lualatex
+keep-tex: true
+number-sections: true
+toc: true
+lof: true
+lot: true
+fig-cap-location: bottom
+tbl-cap-location: top
+classoption: [french]
+papersize: a4
+editor: source
+bibliography: stat.bib
+cite-method: biblatex
+csl: jama.csl
+#reference-location: margin
+#citation-location: margin
+license: "MIT"
+fig-width: 10
+echo: false
+warning: false
+message: false
+cache: false
+---
+
+
+```{r}
+#| label: setup
+
+rm(list = ls())
+#
+library(baseph)
+library(janitor)
+library(tidyverse)
+library(gtsummary)
+library(kableExtra)
+library(lubridate)
+library(kableExtra)
+library(forestmodel)
+library(labelled)
+library(epiDisplay)
+library(visdat)
+library(GGally)
+library(colorspace)
+library(xlsx)
+library(apyramid)
+#
+theme_gtsummary_language(language = "fr", decimal.mark = ",")
+options(OutDec = ",")
+#
+load("datas/stopnaco.RData")
+expx <- TRUE
+classeur <- "copsca1.xls"
+if (expx){system(paste0("rm -f ",classeur))}
+#
+cat <- list(all_continuous() ~ "wilcox.test", all_categorical() ~ "chisq.test")
+affl <- list(all_categorical()~"{n}/{N} ({p}%)")
+```
+
+```{r}
+#| label: macro_tabp
+
+tabp <- function(dfx, nn = 2, nom = "Période") {
+  nom <- paste0("**", nom, "**")
+  if (nn > 2) {cc <- "aov"} else {cc <- "wilcox.test"}
+  nn <- paste0("stat_",1:nn)
+  dfx |>
+    modify_header(label ~ " ") |>
+    modify_spanning_header(nn ~ nom) |>
+    add_p(test = list(all_continuous() ~ cc, all_categorical() ~ "chisq.test")) |>
+    add_overall() |>
+    bold_labels()
+}
+```
+
+
+
+# Description de la population
+
+```{r}
+#| label: nb-cas
+
+ncas <- nrow(tt)
+zz <- tt |> 
+  group_by(groupe) |> 
+  count()
+```
+
+
+L'échantillon comporte `r nrow(tt)` cas  dont `r zz$n[1]` dans le groupe `avant` et `r zz$n[2]` dans le groupe `après`.
+
+## Données manquantes
+
+```{r}
+#| label: fig-manq
+#| fig-cap: Données manquantes
+#| fig-asp: 0.8
+
+vis_dat(tt)
+```
+
+Les données manquantes concernent essentiellement les variables liées à la prescription médicale, au taux d'adéquation au protocole ou à la cause du retard.
+
+## Démographie
+
+```{r}
+#| label: tbl-demog
+#| tbl-cap: Données démographiques
+
+ tt |>
+dplyr::select(age,sexe,type_fracture:marche_avant, marche_avant_avec_aide, groupe) |>  
+tbl_summary(missing = "no",
+            statistic = affl,
+              by = groupe) |> 
+  tabp() |> 
+pexptabph(nomfich = classeur,
+nomsheet = "demog1",
+exp = expx) 
+```
+
+La seule différence gênante est l'évolution du score ASA qui semble plus élevé dans la seconde période.
+
+```{r}
+#| label: fig-ages
+#| fig-cap: Pyramide des âges
+#| fig-asp: 0.8
+tt |>
+# Tracé du graphique
+age_pyramid(age_group = "agerec",
+            split_by = "sexe",
+            pal = c("pink", "lightblue"),
+show_midpoint = FALSE) +
+theme_light() +
+    labs(title = "Pyramide des âges",
+        fill = "Sexe")+ 
+    theme(
+      plot.title = element_text(size = 16, face = "bold"),
+      plot.subtitle = element_text(size = 12),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      legend.title = element_blank(),
+      legend.position = "bottom") 
+```
+
+## Modification des pratiques 
+
+On vérifie que dans la seconde période les pratiques se sont réellement modifiées. 
+
+```{r}
+#| label: tbl-modifprat
+#| tbl-cap: Modification des pratiques
+
+tt |>
+dplyr::select(groupe,taux_adequation_protocole, ddosage_rec, ) |>
+tbl_summary(missing = "no", 
+              by = groupe) |>
+tabp() |> 
+pexptabph(nomfich = classeur,
+nomsheet = "modifprat",
+exp = expx) 
+```
+
+```{r}
+#| label: fig-periodedosage
+#| fig-cap: Dernier dosage selon la période
+#| fig-asp: 0.8
+tt |>
+  drop_na(ddosage_rec) |>
+  ggplot(aes(fill = ddosage_rec, x = groupe)) +
+  geom_bar(position = "fill") +
+  labs(title = "Dernier dosage selon la période",
+       x = "Période",
+       y = "%", 
+       fill = "ng/mL") +
+  theme_light() +
+  scale_y_continuous(labels = seq(0,100,25)) +
+  colorspace::scale_fill_discrete_qualitative(palette = "Dark 3") +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    legend.title = element_text(size = 12),
+    legend.position = "right") 
+
+```
+
+
+Il y a effectivement plus de patients opérés avec un dosage entre 50 & 100 ng/mL dans la seconde période.
+
+# Critère principal
+*mettre en évidence une réduction du délai de prise en charge chirurgicale de la FESF par la mise en place d’un ajustement du seuil préopératoire du dosage des NACO suite à une procédure collégiale en septembre 2021.*
+
+On considère qu'un délai de prise en charge chirurgicale inférieur à 48 heures est optimal. 
+
+
+
+```{r}
+#| label: tbl-delai1
+#| tbl-cap: Délai admission-bloc
+
+
+tt |>
+dplyr::select(delai_chirurgical, groupe, delai48) |>
+tbl_summary(missing = "no", 
+            by = groupe) |> 
+tabp() |> 
+pexptabph(nomfich = classeur,
+nomsheet = "delai1",
+exp = expx) 
+```
+
+```{r}
+#| label: fig-delai1
+#| fig-cap: Délai admission-bloc
+#| fig-asp: 0.8
+
+tt |> 
+  ggplot() +
+  aes(y = delai_chirurgical, x = groupe, fill = groupe) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "grey90") +
+  labs(title = "Délai admission-bloc",
+         x = "Période",
+         y = "heures") +
+  geom_hline(yintercept = 48, linetype = "dotdash", col = "grey40") +
+    theme_light() +
+    colorspace::scale_fill_discrete_qualitative(palette = "Dark 3") +
+    theme(
+      plot.title = element_text(size = 16, face = "bold"),
+      plot.subtitle = element_text(size = 12),
+      axis.title.x = element_text(size = 12),
+      legend.title = element_text(size = 12),
+      axis.title.y = element_text(
+        size = 12,
+        angle = 90,
+        vjust = .5
+      ),
+      axis.text.x = element_text(size = 12),
+      axis.text.y = element_text(size = 12),
+      legend.position = "none"
+    )
+```
+
+## Facteurs influants
+
+```{r}
+#| label: tbl-fact1
+#| tbl-cap: Facteurs influants le délai chirurgical 
+
+tt |>
+tbl_continuous(variable = delai_chirurgical, include = c(groupe, score_asa, agerec,sexe,type_fracture:nb_medicament_entree,adl_avant:marche_avant_avec_aide,score_asa:irc)
+               ) |>
+add_p(test = list(all_continuous() ~ "wilcox.test")) |> 
+bold_labels() |>
+  modify_header(label ~ " ") |>
+pexptabph(nomfich = classeur,
+nomsheet = "fact1",
+exp = expx, lg = TRUE) 
+```
+
+```{r}
+#| label: fig-fact2
+#| fig-cap: Facteurs influants le délai chirurgical
+#| fig-asp: 1.2
+
+lm(delai_chirurgical ~ groupe + score_asa + agerec + adl_avant+ type_fracture ,data = tt) |> 
+forest_model() 
+```
+
+Une interaction forte entre l'âge & l'a vie en institution entre autres a obligé à limiter les variables dans le modèle de régression. La période ne semble pas influencer le délai chirurgical. Les facteurs influant sont l'âge , le score ADL et le type de fracture . Le délai semble plus court chez les patients ASA 2 ou 3 que 4.
+
+
+
+# Critères secondaires 1
+*Mesure de l’impact de la nouvelle stratégie*
+
+
+## Pertes sanguines estimées en per opératoire
+
+```{r}
+#| label: tbl-pertes1
+#| tbl-cap: Pertes sanguines estimées en per opératoire
+
+tt |>
+  filter(ddosage_rec != "> 100") |>
+tbl_continuous(variable = pertes_sanguines_estimees, include = c(groupe, ddosage_rec, score_asa)
+               ) |>
+add_p(test = list(everything() ~ "aov")) |> 
+bold_labels() |>
+  modify_header(label ~ " ") |>
+pexptabph(nomfich = classeur,
+nomsheet = "pertes1",
+exp = expx) 
+
+```
+
+```{r}
+#| label: fig-pertes2
+#| fig-cap: Pertes sanguines estimées en per opératoire
+#| fig-asp: 0.8
+#| 
+zz <- tt |> 
+  filter(ddosage_rec != "> 100")
+lm(pertes_sanguines_estimees~groupe + ddosage_rec +score_asa, data = zz) |> 
+  forest_model() 
+```
+
+
+Le saignement per-opératoire ne semble pas être influencé par le dernier dosage des NACO (sauf si > 100) ou la période. 
+
+```{r}
+#| label: fig-pertes1
+#| fig-cap: Pertes sanguines estimées en per opératoire & dosage antiXa
+#| fig-asp: 1
+
+tt |> 
+  drop_na(ddosage_rec) |>
+  filter(ddosage_rec != "> 100") |>
+  ggplot() +
+  aes(y = pertes_sanguines_estimees, x = ddosage_rec, fill = ddosage_rec) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "grey90") +
+  labs(title = "Pertes sanguines estimées en per opératoire & dosage antiXa",
+         x = "Dernier dosage (ng/ml)",
+         y = "Pertes sanguines estimées (cc)") +
+  geom_hline(yintercept = 48, linetype = "dotdash", col = "grey40") +
+    theme_light() +
+    colorspace::scale_fill_discrete_qualitative(palette = "Dark 3") +
+    theme(
+      plot.title = element_text(size = 16, face = "bold"),
+      plot.subtitle = element_text(size = 12),
+      axis.title.x = element_text(size = 12),
+      legend.title = element_text(size = 12),
+      axis.title.y = element_text(
+        size = 12,
+        angle = 90,
+        vjust = .5
+      ),
+      axis.text.x = element_text(size = 12),
+      axis.text.y = element_text(size = 12),
+      legend.position = "none"
+    )
+```
+
+
+## Transfusion
+
+ 
+### Transfusion sanguine selon la période
+ 
+```{r}
+#| label: tbl-transfu1
+#| tbl-cap: Transfusion sanguine 
+
+
+tt |>
+dplyr::select(groupe, cgr_pre_operatoire :acide_tranexamique) |>
+tbl_summary(missing = "no", 
+            by = groupe) |> 
+tabp() |> 
+pexptabph(nomfich = classeur,
+nomsheet = "transfu1",
+exp = expx) 
+```     
+
+Il n'y a pas de différence entre les deux périodes pour les transfusions sanguines ou autre traitement de l'hémorragie.
+      
+### Transfusion sanguine & dernier dosage
+
+```{r}
+#| label: tbl-transfu2
+#| tbl-cap: Transfusion sanguine & dernier dosage
+
+
+tt |>
+dplyr::select(ddosage_rec, cgr_pre_operatoire :acide_tranexamique) |>
+tbl_summary(missing = "no", 
+            by = ddosage_rec) |> 
+modify_header(label ~ " ") |>
+tabp(nom = "Dernier dosage (pg/mL") |> 
+pexptabph(nomfich = classeur,
+nomsheet = "transfu2",
+exp = expx) 
+```     
+
+Il n'y a pas de différence pour les transfusions sanguines ou autre traitement de l'hémorragie selon le dernier dosage pré-op des NACOs.
+
+## Morbi-mortalité hospitalière
+
+```{r}
+#| label: tbl-morbi
+#| tbl-cap: Morbi-mortalité hospitalière
+
+
+tt |>
+dplyr::select(groupe, complications_infectieuses:complications_hemorragiques, readmission_j_30, deces_intra_hospitalier) |>
+tbl_summary(missing = "no", 
+            by = groupe) |> 
+tabp() |> 
+pexptabph(nomfich = classeur,
+nomsheet = "morbi",
+exp = expx, lg = TRUE) 
+```     
+
+
+# Critères secondaires 2
+*Facteurs impactant la prise en charge*
+
+## Complications de décubitus
+
+```{r}
+#| label: tbl-escarres
+#| tbl-cap: Escarres
+
+tt |>
+dplyr::select(groupe, escarres_sejour) |>
+tbl_summary(missing = "no", 
+            by = groupe) |> 
+tabp() |> 
+pexptabph(nomfich = classeur,
+nomsheet = "escarres",
+exp = expx) 
+```     
+
+
+## Degré de dépendance selon l’échelle ADL de Katz
+
+Le score ALD  n'ayant été noté que pour 4 patients aucune analyse n'est possible.
+
+## Complications liés au terrain
+
+```{r}
+#| label: tbl-terrain
+#| tbl-cap: Complications liés au terrain
+
+tt |>
+dplyr::select(groupe, confusion_sejour, contention_physique_sejour, sonde_sortie, rea, delai_bloc_fauteuil, delai_bloc_marche, dms_structure) |>
+tbl_summary(missing = "no", 
+            by = groupe) |> 
+tabp() |> 
+pexptabph(nomfich = classeur,
+nomsheet = "terrain",
+exp = expx) 
+```     
+
+À noter la prise en charge semble avoir évolué entre les deux périodes par exemple le délai bloc-marche est plus court.
+
+
+## Prise en charge
+
+```{r}
+#| label: tbl-pec
+#| tbl-cap: Prise en charge 
+
+tt |>
+  dplyr::select(
+    groupe,
+    pec_denutrition:kt_femoral_ou_bloc_analgesique,
+    pm_antalg:pm_traitement_perso
+  ) |>
+  tbl_summary(missing = "no", by = groupe) |>
+tabp() |> 
+  pexptabph(nomfich = classeur,
+            nomsheet = "pec",
+            exp = expx,
+            lg = TRUE) 
+```   
+
+
+## Jour d’admission sur la prise en charge
+
+```{r}
+#| label: tbl-jour
+#| tbl-cap: Prise en charge 
+
+tt |>
+dplyr::select(entree, delai_chirurgical,deces_intra_hospitalier,delai_attente_sau_pontoise, pec_douleur, kt_femoral_ou_bloc_analgesique, pertes_sanguines_estimees) |>
+tbl_summary(missing = "no", 
+            by = entree) |> 
+    #   modify_header(label ~ " ") |>
+    # modify_spanning_header(c("stat_1" ,"stat_2","stat_3") ~ "**Admission**") |>
+    # add_p(test = list(all_continuous() ~ "aov", all_categorical() ~ "chisq.test")) |>
+    # add_overall() |>
+    # bold_labels() |> 
+  tabp(nn = 3, nom = "Admission") |>
+pexptabph(nomfich = classeur,
+nomsheet = "jour",
+exp = expx) 
+```  
+
+Vu le faible nombre de cas les "`vendredi après 16 h`" ont été considérés comme du week-end. L'attente au SAU est plus longue la semaine (en journée). Plus de décès le week-end ? 
+
+# Technique 
+
+L'effectif étant de petite taille des tests de normalité ont été effectués sur les variables principales en particulier le `délai chirurgical` qui n'a pas une distribution normale (test de shapiro : `r beaup(0.00007,affp = 1)`). Des tests non paramétriques ont donc été utilisés.
+
+Les données discrètes ont été présentés en pourcentage puis comparées par le test du $\Chi^2$ de Pearson avec correction de Yates si nécessaire. Les données numériques ont été présentées par leur médiane & les quartiles puis comparées par le test non paramétrique de Wilcoxon Mann Whitney ou une analyse de variance (ANOVA) si le critère de tri avait plus de deux modalités. 
+
+Les analyse en régression ont été réalisées dans un premier temps en incorporant toutes les variables significatives au seuil de 0,20 dans un modèle de régression puis une recherche du meilleur modèle en pas-à-pas descendant basé sur l'AIC a été effectuée. Néanmoins les variables majeures (période\dots) ont été forcées.
+
+L'analyse statistique a été réalisée avec le logiciel **R** [@rstat] & diverses librairies en particulier celles du `tidyverse` [@tidy] & `baseph` [@baseph].

@@ -104,6 +104,7 @@ classeur <- "stopnaco1.xls"
 if (expx){system(paste0("rm -f ",classeur))}
 ```
 
+
 L'échantillon comporte `r nrow(tt)` observations pour `r ncol(tt)-1` variables.
 
 ```{r}
@@ -174,7 +175,8 @@ return(zz)
 #| label: macro_mediane
 
 medph <- function(df,varx){
-  zz <- df |>
+
+zz <- df |>
     dplyr::select({{varx}}) |>
     na.omit() |>
     summarise(median = round(median({{varx}}, na.rm = TRUE),1),
